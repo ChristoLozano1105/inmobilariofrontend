@@ -5,6 +5,7 @@ import {
   logoutRequest,
   verifyTokenRequest,
 } from "../api/auth";
+import api from "../api/axiosInstance";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext();
@@ -21,73 +22,108 @@ export const AuthProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [errors, setErrors] = useState([]);
-  const [loading, setLoading] = useState(true); // opcional pero recomendado
+  const [loading, setLoading] = useState(true);
 
-  const signUp = async (user) => {
+  const setAuthFromUser = (userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    setIsAdmin((userData?.role || "").toLowerCase() === "admin");
+  };
+
+  const clearAuth = () => {
+    localStorage.removeItem("token");
+    delete api.defaults.headers.common["Authorization"];
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+  };
+
+  // ✅ registrar
+  const signUp = async (payload) => {
     try {
-      const res = await registerRequest(user);
-      setUser(res.data);
-      setIsAuthenticated(true);
-      setIsAdmin((res.data?.role || "").toLowerCase() === "admin");
+      const res = await registerRequest(payload);
+
+      // Si tu backend también regresa token al registrar:
+      const token = res.data?.token || res.data?.accessToken;
+      if (token) {
+        localStorage.setItem("token", token);
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      }
+
+      const userData = res.data?.user || res.data;
+      setAuthFromUser(userData);
       setErrors([]);
     } catch (error) {
       setErrors(error.response?.data?.message || ["Error al registrar usuario"]);
     }
   };
 
-  const signIn = async (user) => {
+  // ✅ login
+  const signIn = async (payload) => {
     try {
-      const res = await loginRequst(user);
-      setUser(res.data);
-      setIsAuthenticated(true);
-      setIsAdmin((res.data?.role || "").toLowerCase() === "admin");
+      const res = await loginRequst(payload);
+
+      // 🔥 Ajusta aquí si tu backend usa otro nombre
+      const token = res.data?.token || res.data?.accessToken;
+
+      if (token) {
+        localStorage.setItem("token", token);
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      }
+
+      const userData = res.data?.user || res.data;
+      setAuthFromUser(userData);
       setErrors([]);
     } catch (error) {
       setErrors(error.response?.data?.message || ["Error al iniciar sesión"]);
     }
   };
 
-  //  borra cookie en backend + limpia estado
+  // ✅ logout
   const logout = async () => {
     try {
-      await logoutRequest(); // POST /logout
+      await logoutRequest();
     } catch (error) {
       console.error("logout error:", error);
     } finally {
-      setUser(null);
-      setIsAuthenticated(false);
-      setIsAdmin(false);
+      clearAuth();
       setErrors([]);
     }
   };
 
-
+  // ✅ mantener sesión
   useEffect(() => {
     const checkLogin = async () => {
       try {
-        const res = await verifyTokenRequest(); // GET /verify (o /profile según tu backend)
-        setUser(res.data);
-        setIsAuthenticated(true);
-        setIsAdmin((res.data?.role || "").toLowerCase() === "admin");
+        const token = localStorage.getItem("token");
+
+        if (!token) {
+          clearAuth();
+          return;
+        }
+
+        // setea header para requests posteriores
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        // tu verifyTokenRequest = GET /profile
+        const res = await verifyTokenRequest();
+        setAuthFromUser(res.data);
       // eslint-disable-next-line no-unused-vars
       } catch (error) {
-        setUser(null);
-        setIsAuthenticated(false);
-        setIsAdmin(false);
+        clearAuth();
       } finally {
         setLoading(false);
       }
     };
 
     checkLogin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // useEffect que limpia errores después de 5 segundos
+  // ✅ limpiar errores después de 5s
   useEffect(() => {
     if (errors.length > 0) {
-      const timer = setTimeout(() => {
-        setErrors([]);
-      }, 5000);
+      const timer = setTimeout(() => setErrors([]), 5000);
       return () => clearTimeout(timer);
     }
   }, [errors]);
@@ -97,12 +133,12 @@ export const AuthProvider = ({ children }) => {
       value={{
         signUp,
         signIn,
-        logout, 
+        logout,
         user,
         isAuthenticated,
         isAdmin,
         errors,
-        loading, 
+        loading,
       }}
     >
       {children}
