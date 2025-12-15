@@ -6,7 +6,7 @@ import {
   cancelarSolicitudAdminRequest,
   getSolicitudesAllRequest,
   aprobarSolicitudRequest,
-} from "../api/solicitud";
+} from "/api/solicitud";
 
 const SolicitudContext = createContext();
 
