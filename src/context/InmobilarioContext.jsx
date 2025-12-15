@@ -14,7 +14,7 @@ import {
   updateInmobilarioRequest,
   updateInmobilarioRequestNoUpdateImage,
   getInmobilariosPublicRequest
-} from '/api/inmobilario';
+} from '../api/inmobilario';
 
 const InmobilarioContext = createContext();
 
